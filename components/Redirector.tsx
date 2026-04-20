@@ -97,48 +97,20 @@ export default function Redirector({ tmdbId, type, season, episode }: Redirector
 
           let isAccessible = false;
           try {
-            // Attempt a real fetch to read the body
-            const response = await fetch(fullTargetUrl, {
-              method: "GET",
-              signal: controller.signal,
-            });
-
+            // Call our own API to check the target server (bypasses CORS and reads body)
+            const checkUrl = `/api/check-health?url=${encodeURIComponent(fullTargetUrl)}`;
+            const response = await fetch(checkUrl, { signal: controller.signal });
+            
             if (response.ok) {
-              const text = await response.text();
-              const lowerText = text.toLowerCase();
-              
-              // Keywords that indicate the server is NOT actually providing the content
-              const forbiddenKeywords = [
-                "rate limited",
-                "too many requests",
-                "temporary block",
-                "temporarily rate limited",
-                "quota exceeded",
-                "error 429",
-                "not found",
-                "no video available"
-              ];
-
-              const hasErrorText = forbiddenKeywords.some(keyword => lowerText.includes(keyword));
-              
-              // If the page is very short and contains error-like keywords, skip it
-              if (!hasErrorText && lowerText.length > 200) {
+              const data = await response.json();
+              if (data.ok) {
                 isAccessible = true;
               } else {
-                console.warn(`Server ${currentIndex} returned an error page or rate limit message.`);
+                console.warn(`Server ${currentIndex} is not accessible: ${data.reason || data.error}`);
               }
-            } else if (response.status === 429) {
-                console.warn(`Server ${currentIndex} returned 429 Rate Limit.`);
             }
           } catch (fetchError) {
-            console.warn("CORS/Network error on full check, using fallback check:", fetchError);
-            // Fallback for servers with strict CORS: we check if they are at least alive
-            // Note: This won't detect "rate limited" text, but it's the only way if CORS is off
-            const fallbackResponse = await fetch(serverUrl, { 
-                mode: "no-cors", 
-                signal: controller.signal 
-            });
-            isAccessible = !!fallbackResponse;
+            console.error(`Error calling health-check API for server ${currentIndex}:`, fetchError);
           }
 
           clearTimeout(timeoutId);
