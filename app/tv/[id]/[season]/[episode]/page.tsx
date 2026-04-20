@@ -1,5 +1,8 @@
 import Redirector from "@/components/Redirector";
 
+export const runtime = 'edge';
+
+
 export default async function TVPage({ 
   params 
 }: { 
