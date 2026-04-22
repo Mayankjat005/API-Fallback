@@ -71,70 +71,37 @@ export default function Redirector({ tmdbId, type, season, episode }: Redirector
     };
   }, []);
 
-  // Server rotation logic
+  // Simplified server rotation logic (Direct Redirection)
   useEffect(() => {
     async function startRotation() {
-      const lastIndexStr = localStorage.getItem("last_server_index");
-      let currentIndex = lastIndexStr ? (parseInt(lastIndexStr) + 1) % SERVERS.length : 0;
-
-      const triedIndices = new Set<number>();
-
-      while (triedIndices.size < SERVERS.length) {
+      try {
+        const lastIndexStr = localStorage.getItem("last_server_index");
+        const currentIndex = lastIndexStr ? (parseInt(lastIndexStr) + 1) % SERVERS.length : 0;
+        
         const serverUrl = SERVERS[currentIndex];
         setServerIndex(currentIndex);
-        setStatus(`Checking Server ${currentIndex + 1} of ${SERVERS.length}`);
-        setProgress(((triedIndices.size + 1) / SERVERS.length) * 100);
+        setStatus(`Connecting to Server ${currentIndex + 1}...`);
+        setProgress(50);
 
-        try {
-          const targetPath =
-            type === "movie"
-              ? `/movie/${tmdbId}`
-              : `/tv/${tmdbId}/${season}/${episode}`;
-          const fullTargetUrl = `${serverUrl}${targetPath}`;
+        localStorage.setItem("last_server_index", currentIndex.toString());
 
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+        const targetPath =
+          type === "movie"
+            ? `/movie/${tmdbId}`
+            : `/tv/${tmdbId}/${season}/${episode}`;
+        const fullTargetUrl = `${serverUrl}${targetPath}`;
 
-          let isAccessible = false;
-          try {
-            // Call our own API to check the target server (bypasses CORS and reads body)
-            const checkUrl = `/api/check-health?url=${encodeURIComponent(fullTargetUrl)}`;
-            const response = await fetch(checkUrl, { signal: controller.signal });
-            
-            if (response.ok) {
-              const data = await response.json();
-              if (data.ok) {
-                isAccessible = true;
-              } else {
-                console.warn(`Server ${currentIndex} is not accessible: ${data.reason || data.error}`);
-              }
-            }
-          } catch (fetchError) {
-            console.error(`Error calling health-check API for server ${currentIndex}:`, fetchError);
-          }
-
-          clearTimeout(timeoutId);
-
-          if (isAccessible) {
-            localStorage.setItem("last_server_index", currentIndex.toString());
-            setStatus("Optimal Server Found!");
-            setProgress(100);
-
-            // Small delay for visual feedback
-            await new Promise((r) => setTimeout(r, 800));
-            window.location.replace(fullTargetUrl);
-            return;
-          } else {
-            throw new Error("Server check failed");
-          }
-        } catch (err) {
-          console.error(`Server ${currentIndex} failed accessibility check:`, err);
-          triedIndices.add(currentIndex);
-          currentIndex = (currentIndex + 1) % SERVERS.length;
-        }
+        // Small delay for visual feedback/animation
+        await new Promise((r) => setTimeout(r, 1200));
+        
+        setProgress(100);
+        setStatus("Redirecting...");
+        
+        window.location.replace(fullTargetUrl);
+      } catch (err) {
+        console.error("Redirection error:", err);
+        setError("Failed to connect to streaming server. Please try again.");
       }
-
-      setError(FALLBACK_MESSAGE);
     }
 
     startRotation();
